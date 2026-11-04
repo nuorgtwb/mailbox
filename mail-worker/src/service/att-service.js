@@ -212,6 +212,16 @@ const attService = {
 			.all();
 	},
 
+	selectEmbeddedByEmailIds(c, emailIds) {
+		if (!emailIds || emailIds.length === 0) return [];
+		return orm(c).select().from(att).where(
+			and(
+				inArray(att.emailId, emailIds),
+				eq(att.type, attConst.type.EMBED)
+			))
+			.all();
+	},
+
 	async removeAttByField(c, fieldName, fieldValues) {
 
 		const sqlList = [];
