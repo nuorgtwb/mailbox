@@ -23,6 +23,18 @@ import starService from './star-service';
 
 const userService = {
 
+	// Protect the configured administrator by email, not by a mutable numeric user ID.
+	async assertNotAdmin(c, userIds) {
+		if (!c.env.admin) return;
+		const ids = (Array.isArray(userIds) ? userIds : [userIds]).map(Number).filter(Number.isFinite);
+		if (ids.length === 0) return;
+		const rows = await orm(c).select({ email: user.email }).from(user).where(inArray(user.userId, ids)).all();
+		const adminEmail = String(c.env.admin).toLowerCase();
+		if (rows.some(row => String(row.email).toLowerCase() === adminEmail)) {
+			throw new BizError('Administrator account is protected');
+		}
+	},
+
 	async loginUserInfo(c, userId) {
 
 		const userRow = await userService.selectById(c, userId);
@@ -58,6 +70,7 @@ const userService = {
 
 	async resetPassword(c, params, userId) {
 
+		await this.assertNotAdmin(c, userId);
 		const { password } = params;
 
 		if (password.length < 6) {
@@ -97,6 +110,7 @@ const userService = {
 	},
 
 	async delete(c, userId) {
+		await this.assertNotAdmin(c, userId);
 		const { syncDelete } = await settingService.query(c);
 		if (syncDelete === settingConst.syncDelete.OPEN) {
 			await this.physicsDelete(c, { userIds: String(userId) });
@@ -110,6 +124,7 @@ const userService = {
 	async physicsDelete(c, params) {
 		let { userIds } = params;
 		userIds = userIds.split(',').map(Number);
+		await this.assertNotAdmin(c, userIds);
 		await starService.removeByUserIds(c, userIds);
 		await accountService.physicsDeleteByUserIds(c, userIds);
 		await oauthService.deleteByUserIds(c, userIds);
@@ -275,6 +290,7 @@ const userService = {
 	async setStatus(c, params) {
 
 		const { status, userId } = params;
+		await this.assertNotAdmin(c, userId);
 
 		await orm(c)
 			.update(user)
@@ -290,6 +306,7 @@ const userService = {
 	async setType(c, params) {
 
 		const { type, userId } = params;
+		await this.assertNotAdmin(c, userId);
 
 		const roleRow = await roleService.selectById(c, type);
 
@@ -314,11 +331,11 @@ const userService = {
 	},
 
 	async updateAllUserType(c, type, curType) {
-		await orm(c)
-			.update(user)
-			.set({ type })
-			.where(eq(user.type, curType))
-			.run();
+			await orm(c)
+				.update(user)
+				.set({ type })
+				.where(and(eq(user.type, curType), sql`${user.email} COLLATE NOCASE != ${c.env.admin || ''}`))
+				.run();
 	},
 
 	async add(c, params) {
