@@ -17,7 +17,7 @@ const attachmentAuth = {
 			false,
 			['sign']
 		);
-		const payload = `${key}| ${userId}|${emailId}|${expires}`.replace('| ', '|');
+		const payload = `${key}|${userId}|${emailId}|${expires}`;
 		return base64url(await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(payload)));
 	},
 
