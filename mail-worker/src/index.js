@@ -6,6 +6,7 @@ import emailService from './service/email-service';
 import r2Service from './service/r2-service';
 import oauthService from './service/oauth-service';
 import analysisService from './service/analysis-service';
+import attachmentAuth from './utils/attachment-auth';
 export default {
 	 async fetch(req, env, ctx) {
 
@@ -19,14 +20,26 @@ export default {
 
 		if (url.pathname.startsWith('/oss/')) {
 			const key = url.pathname.slice('/oss/'.length);
+			if (key.startsWith('attachments/') && !await attachmentAuth.verify({ env }, key, url.searchParams)) {
+				return new Response('Forbidden', { status: 403 });
+			}
 			const resp = await r2Service.toObjResp({ env }, key);
 			return resp || new Response('Not Found', { status: 404 });
 		}
 
-		 if (['/static/','/attachments/'].some(p => url.pathname.startsWith(p))) {
-			 const resp = await r2Service.toObjResp({ env }, url.pathname.substring(1));
-			 return resp || new Response('Not Found', { status: 404 });
-		 }
+		if (url.pathname.startsWith('/attachments/')) {
+			const key = url.pathname.slice(1);
+			if (!await attachmentAuth.verify({ env }, key, url.searchParams)) {
+				return new Response('Forbidden', { status: 403 });
+			}
+			const resp = await r2Service.toObjResp({ env }, key);
+			return resp || new Response('Not Found', { status: 404 });
+		}
+
+		if (url.pathname.startsWith('/static/')) {
+			const resp = await r2Service.toObjResp({ env }, url.pathname.substring(1));
+			return resp || new Response('Not Found', { status: 404 });
+		}
 
 		return env.assets.fetch(req);
 	},
