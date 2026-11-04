@@ -255,8 +255,16 @@ const accountService = {
 	},
 
 	async physicsDelete(c, params) {
-		const { accountId } = params
-		await emailService.physicsDeleteByAccountId(c, accountId)
+		const { accountId } = params;
+		const accountRow = await orm(c).select().from(account).where(eq(account.accountId, accountId)).get();
+		if (accountRow && c.env.admin) {
+			const owner = await userService.selectByIdIncludeDel(c, accountRow.userId);
+			const adminEmail = String(c.env.admin).toLowerCase();
+			if (String(accountRow.email).toLowerCase() === adminEmail || String(owner?.email || '').toLowerCase() === adminEmail) {
+				throw new BizError('Administrator account is protected');
+			}
+		}
+		await emailService.physicsDeleteByAccountId(c, accountId);
 		await orm(c).delete(account).where(eq(account.accountId, accountId)).run();
 	},
 
