@@ -75,7 +75,6 @@ const userService = {
 
 	async resetPassword(c, params, userId) {
 
-		await this.assertNotAdmin(c, userId);
 		const { password } = params;
 
 		if (password.length < 6) {
@@ -288,6 +287,7 @@ const userService = {
 	async setPwd(c, params) {
 
 		const { password, userId } = params;
+		await this.assertNotAdmin(c, userId);
 		await this.resetPassword(c, { password }, userId);
 		await c.env.kv.delete(KvConst.AUTH_INFO + userId);
 	},
