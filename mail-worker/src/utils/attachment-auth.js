@@ -37,6 +37,7 @@ const attachmentAuth = {
 	},
 
 	async verify(c, key, searchParams) {
+		if (!c.env.jwt_secret) return false;
 		if (!key || !key.startsWith('attachments/') || key.includes('..') || key.includes(String.fromCharCode(92))) return false;
 		const userId = Number(searchParams.get('uid'));
 		const emailId = Number(searchParams.get('eid'));
