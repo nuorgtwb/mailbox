@@ -135,14 +135,17 @@ const publicService = {
 				type = roleRow ? roleRow.roleId : type;
 			}
 
-			const userSql = `INSERT INTO user (email, password, salt, type, os, browser, active_ip, create_ip, device, active_time, create_time)
-			VALUES ('${email}', '${hash}', '${salt}', '${type}', '${os}', '${browser}', '${activeIp}', '${activeIp}', '${device}', '${activeTime}', '${activeTime}')`
+			// Bind every value instead of interpolating request-controlled data into SQL.
+			const userStatement = c.env.db.prepare(`INSERT INTO user (email, password, salt, type, os, browser, active_ip, create_ip, device, active_time, create_time)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+				.bind(email, hash, salt, type, os, browser, activeIp, activeIp, device, activeTime, activeTime);
 
-			const accountSql = `INSERT INTO account (email, name, user_id)
-			VALUES ('${email}', '${emailUtils.getName(email)}', 0);`;
+			const accountStatement = c.env.db.prepare(`INSERT INTO account (email, name, user_id)
+			VALUES (?, ?, 0);`)
+				.bind(email, emailUtils.getName(email));
 
-			userList.push(c.env.db.prepare(userSql));
-			userList.push(c.env.db.prepare(accountSql));
+			userList.push(userStatement);
+			userList.push(accountStatement);
 
 		}
 
