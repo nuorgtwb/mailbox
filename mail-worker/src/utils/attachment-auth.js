@@ -2,8 +2,11 @@ const encoder = new TextEncoder();
 const URL_TTL_SECONDS = 60 * 60;
 
 const base64url = (input) => {
-	const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : new Uint8Array(input);
-	return btoa(String.fromCharCode(...bytes)).replace(/=/g, '').replace(/\\+/g, '-').replace(/\\//g, '_');
+	const bytes = new Uint8Array(input);
+	return btoa(String.fromCharCode(...bytes))
+		.replaceAll('=', '')
+		.replaceAll('+', '-')
+		.replaceAll('/', '_');
 };
 
 const attachmentAuth = {
@@ -26,6 +29,7 @@ const attachmentAuth = {
 		const expires = Math.floor(Date.now() / 1000) + URL_TTL_SECONDS;
 		const userId = Number(attachment.userId);
 		const emailId = Number(attachment.emailId);
+		if (!Number.isSafeInteger(userId) || userId <= 0 || !Number.isSafeInteger(emailId) || emailId <= 0) return null;
 		const sig = await this.signature(c, attachment.key, userId, emailId, expires);
 		if (!sig) return null;
 		const query = new URLSearchParams({ uid: String(userId), eid: String(emailId), exp: String(expires), sig });
@@ -33,7 +37,7 @@ const attachmentAuth = {
 	},
 
 	async verify(c, key, searchParams) {
-		if (!key || !key.startsWith('attachments/') || key.includes('..') || key.includes('\\\\')) return false;
+		if (!key || !key.startsWith('attachments/') || key.includes('..') || key.includes(String.fromCharCode(92))) return false;
 		const userId = Number(searchParams.get('uid'));
 		const emailId = Number(searchParams.get('eid'));
 		const expires = Number(searchParams.get('exp'));
@@ -44,9 +48,6 @@ const attachmentAuth = {
 			!Number.isSafeInteger(expires) || expires < now || expires > now + URL_TTL_SECONDS ||
 			!supplied) return false;
 
-		const expected = await this.signature(c, key, userId, emailId, expires);
-		if (!expected || supplied.length !== expected.length) return false;
-
 		const cryptoKey = await crypto.subtle.importKey(
 			'raw',
 			encoder.encode(c.env.jwt_secret),
@@ -55,7 +56,7 @@ const attachmentAuth = {
 			['verify']
 		);
 		const signatureBytes = Uint8Array.from(
-			atob(supplied.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - supplied.length % 4) % 4)),
+			atob(supplied.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - supplied.length % 4) % 4)),
 			char => char.charCodeAt(0)
 		);
 		const payload = `${key}|${userId}|${emailId}|${expires}`;
