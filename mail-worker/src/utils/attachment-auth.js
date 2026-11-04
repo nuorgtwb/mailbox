@@ -42,6 +42,7 @@ const attachmentAuth = {
 		const emailId = Number(searchParams.get('eid'));
 		const expires = Number(searchParams.get('exp'));
 		const supplied = searchParams.get('sig');
+		if (typeof supplied !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(supplied)) return false;
 		const now = Math.floor(Date.now() / 1000);
 		if (!Number.isSafeInteger(userId) || userId <= 0 ||
 			!Number.isSafeInteger(emailId) || emailId <= 0 ||
