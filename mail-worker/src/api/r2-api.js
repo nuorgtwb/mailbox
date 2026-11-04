@@ -11,6 +11,11 @@ app.get('/oss/*', async (c) => {
 	if (!resp) {
 		return c.notFound();
 	}
+	if (key.startsWith('attachments/')) {
+		const headers = new Headers(resp.headers);
+		headers.set('Cache-Control', 'private, no-store');
+		return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+	}
 	return resp;
 });
 
