@@ -25,6 +25,7 @@ import { att } from '../entity/att';
 import telegramService from './telegram-service';
 import webhookService from './webhook-service';
 import forwardMime from '../utils/forward-mime';
+import attachmentAuth from '../utils/attachment-auth';
 
 const emailService = {
 
@@ -1241,12 +1242,30 @@ const emailService = {
 
 		if (emailIds.length > 0) {
 
-			const attList = await attService.selectByEmailIds(c, emailIds);
+			const [attList, embeddedList] = await Promise.all([
+				attService.selectByEmailIds(c, emailIds),
+				attService.selectEmbeddedByEmailIds(c, emailIds)
+			]);
 
-			list.forEach(emailRow => {
+			for (const emailRow of list) {
 				const atts = attList.filter(attRow => attRow.emailId === emailRow.emailId);
+				for (const attRow of atts) {
+					attRow.url = await attachmentAuth.createUrl(c, attRow);
+				}
 				emailRow.attList = atts;
-			});
+
+				// Inline images are also private attachments. Replace their legacy public
+				// object URLs with short-lived signed Worker URLs in the response only.
+				if (emailRow.content) {
+					const embedded = embeddedList.filter(attRow => attRow.emailId === emailRow.emailId);
+					for (const attRow of embedded) {
+						const url = await attachmentAuth.createUrl(c, attRow);
+						if (url) {
+							emailRow.content = emailRow.content.replaceAll('{{domain}}' + attRow.key, url);
+						}
+					}
+				}
+			}
 		}
 	},
 
