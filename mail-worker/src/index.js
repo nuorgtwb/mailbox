@@ -24,7 +24,13 @@ export default {
 				return new Response('Forbidden', { status: 403 });
 			}
 			const resp = await r2Service.toObjResp({ env }, key);
-			return resp || new Response('Not Found', { status: 404 });
+			if (!resp) return new Response('Not Found', { status: 404 });
+			if (key.startsWith('attachments/')) {
+				const headers = new Headers(resp.headers);
+				headers.set('Cache-Control', 'private, no-store');
+				return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+			}
+			return resp;
 		}
 
 		if (url.pathname.startsWith('/attachments/')) {
@@ -33,7 +39,13 @@ export default {
 				return new Response('Forbidden', { status: 403 });
 			}
 			const resp = await r2Service.toObjResp({ env }, key);
-			return resp || new Response('Not Found', { status: 404 });
+			if (!resp) return new Response('Not Found', { status: 404 });
+			if (key.startsWith('attachments/')) {
+				const headers = new Headers(resp.headers);
+				headers.set('Cache-Control', 'private, no-store');
+				return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers });
+			}
+			return resp;
 		}
 
 		if (url.pathname.startsWith('/static/')) {
