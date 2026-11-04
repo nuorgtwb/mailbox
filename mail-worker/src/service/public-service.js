@@ -191,6 +191,12 @@ const publicService = {
 		if (!await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password)) {
 			throw new BizError(t('IncorrectPwd'));
 		}
+
+		// The public API admin login uses the same gradual hash upgrade as normal login.
+		if (cryptoUtils.needsRehash(userRow.password)) {
+			const upgradedHash = await cryptoUtils.hashPassword(password);
+			await userService.updatePasswordHash(c, userRow.userId, upgradedHash.salt, upgradedHash.hash);
+		}
 	}
 
 }
