@@ -1,6 +1,7 @@
 import app from '../hono/hono';
 import { dbInit } from '../init/init';
 
-app.get('/init/:secret', (c) => {
+// Database initialization changes persistent state: accept POST only.
+app.post('/init', (c) => {
 	return dbInit.init(c);
-})
+});
