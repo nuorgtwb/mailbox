@@ -243,8 +243,19 @@ const loginService = {
 			throw new BizError(t('isBanUser'));
 		}
 
-		if (!await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password) && !noVerifyPwd) {
-			throw new BizError(t('IncorrectPwd'));
+		if (!noVerifyPwd) {
+			const passwordValid = await cryptoUtils.verifyPassword(password, userRow.salt, userRow.password);
+			if (!passwordValid) {
+				throw new BizError(t('IncorrectPwd'));
+			}
+
+			// Upgrade legacy SHA-256 hashes only after the user's password is verified.
+			if (cryptoUtils.needsRehash(userRow.password)) {
+				const upgradedHash = await cryptoUtils.hashPassword(password);
+				await userService.updatePasswordHash(c, userRow.userId, upgradedHash.salt, upgradedHash.hash);
+				userRow.password = upgradedHash.hash;
+				userRow.salt = upgradedHash.salt;
+			}
 		}
 
 		const uuid = uuidv4();
