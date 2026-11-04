@@ -5,10 +5,17 @@ import {emailConst} from "../const/entity-const";
 const dbInit = {
 	async init(c) {
 
-		const secret = c.req.param('secret');
+		// Use a dedicated secret sent in a header; never reuse the JWT signing key
+		// or expose an initialization credential in the URL and access logs.
+		const expectedSecret = c.env.init_secret;
+		const suppliedSecret = c.req.header('X-Init-Secret');
 
-		if (secret !== c.env.jwt_secret) {
-			return c.text('❌ JWT secret mismatch');
+		if (!expectedSecret) {
+			return c.text('Initialization is disabled: configure the init_secret Worker secret first.', 503);
+		}
+
+		if (!suppliedSecret || suppliedSecret !== expectedSecret) {
+			return c.text('Unauthorized', 401);
 		}
 
 		await this.intDB(c);
