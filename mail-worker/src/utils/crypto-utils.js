@@ -1,4 +1,8 @@
 const encoder = new TextEncoder();
+const PBKDF2_ITERATIONS = 120000;
+const PBKDF2_PREFIX = 'pbkdf2';
+
+const toBase64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
 
 const saltHashUtils = {
 
@@ -8,23 +12,60 @@ const saltHashUtils = {
 		return btoa(String.fromCharCode(...array));
 	},
 
-
 	async hashPassword(password) {
 		const salt = this.generateSalt();
-		const hash = await this.genHashPassword(password, salt);
-		return { salt, hash };
+		const hash = await this.genPbkdf2Hash(password, salt, PBKDF2_ITERATIONS);
+		return { salt, hash: `${PBKDF2_PREFIX}$${PBKDF2_ITERATIONS}$${hash}` };
 	},
 
+	// Retained only to verify existing SHA-256 password hashes during migration.
 	async genHashPassword(password, salt) {
 		const data = encoder.encode(salt + password);
 		const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-		const hashArray = Array.from(new Uint8Array(hashBuffer));
-		return btoa(String.fromCharCode(...hashArray));
+		return toBase64(hashBuffer);
+	},
+
+	async genPbkdf2Hash(password, salt, iterations = PBKDF2_ITERATIONS) {
+		const key = await crypto.subtle.importKey(
+			'raw',
+			encoder.encode(password),
+			'PBKDF2',
+			false,
+			['deriveBits']
+		);
+		const bits = await crypto.subtle.deriveBits({
+			name: 'PBKDF2',
+			salt: encoder.encode(salt),
+			iterations,
+			hash: 'SHA-256'
+		}, key, 256);
+		return toBase64(bits);
+	},
+
+	needsRehash(storedHash) {
+		if (typeof storedHash !== 'string' || !storedHash.startsWith(PBKDF2_PREFIX + '$')) {
+			return true;
+		}
+		const iterations = Number(storedHash.split('$')[1]);
+		return !Number.isSafeInteger(iterations) || iterations < PBKDF2_ITERATIONS;
 	},
 
 	async verifyPassword(inputPassword, salt, storedHash) {
-		const hash = await this.genHashPassword(inputPassword, salt);
-		return hash === storedHash;
+		if (typeof storedHash !== 'string') return false;
+
+		if (storedHash.startsWith(PBKDF2_PREFIX + '$')) {
+			const [, iterationsText, expectedHash] = storedHash.split('$');
+			const iterations = Number(iterationsText);
+			if (!Number.isSafeInteger(iterations) || iterations < 10000 || iterations > 1000000 || !expectedHash) {
+				return false;
+			}
+			const actualHash = await this.genPbkdf2Hash(inputPassword, salt, iterations);
+			return actualHash === expectedHash;
+		}
+
+		// Backward compatibility: verify legacy SHA-256 hashes, then upgrade on successful login.
+		const legacyHash = await this.genHashPassword(inputPassword, salt);
+		return legacyHash === storedHash;
 	},
 
 	genRandomPwd(length = 8) {
