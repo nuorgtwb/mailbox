@@ -70,9 +70,16 @@ const saltHashUtils = {
 
 	genRandomPwd(length = 8) {
 		const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+		const maxByte = 256 - (256 % chars.length);
 		let result = '';
-		for (let i = 0; i < length; i++) {
-			result += chars.charAt(Math.floor(Math.random() * chars.length));
+		while (result.length < length) {
+			const bytes = new Uint8Array(Math.max(16, length - result.length));
+			crypto.getRandomValues(bytes);
+			for (const byte of bytes) {
+				if (byte >= maxByte) continue;
+				result += chars[byte % chars.length];
+				if (result.length === length) break;
+			}
 		}
 		return result;
 	}
